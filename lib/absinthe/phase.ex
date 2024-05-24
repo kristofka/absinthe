@@ -8,17 +8,18 @@ defmodule Absinthe.Phase do
   this namespace for information on individual phases.
   """
 
+  alias __MODULE__
+  alias Absinthe.Blueprint
+
   @type t :: module
   @type result_t ::
           {:ok, any}
-          | {:jump, any, t}
+          | {:jump, Blueprint.t(), t}
           | {:insert, any, t | [t]}
           | {:replace, any, t | [t]}
           | {:error, any}
-          | {:record_phases, any, (any, any -> any)}
+          | {:record_phases, Blueprint.t(), (Blueprint.t(), list(Phase.t()) -> Blueprint.t())}
 
-  alias __MODULE__
-  alias Absinthe.Blueprint
 
   defmacro __using__(_) do
     quote do

@@ -1,7 +1,10 @@
 defmodule Absinthe.Phase.Document.Validation.ProvidedAnOperation do
-  @moduledoc false
+  @moduledoc """
+  This phase validates document to ensure that at least one operation is given in the `Absinthe.Blueprint`.
+  If the `:jump_phases` option is set to `true`, validation errors will cause this phase to return a
+  `{:jump, blueprint, abort_phase}` causing the pipeline to skip execution until to the `abort_phase` phase.
+  """
 
-  # Validates document to ensure that at least one operation is given.
 
   alias Absinthe.{Blueprint, Phase}
 
@@ -10,7 +13,8 @@ defmodule Absinthe.Phase.Document.Validation.ProvidedAnOperation do
   @doc """
   Run the validation.
   """
-  @spec run(Blueprint.t(), Keyword.t()) :: Phase.result_t()
+  @spec run(Blueprint.t(), Keyword.t()) ::
+          {:ok, Blueprint.t()} | {:jump, Blueprint.t(), Phase.t()}
   def run(input, options \\ []) do
     case {handle_node(input), Map.new(options)} do
       {%{flags: %{no_operations: _}} = result,

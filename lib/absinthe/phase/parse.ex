@@ -1,14 +1,26 @@
 defmodule Absinthe.Phase.Parse do
-  @moduledoc false
+  @moduledoc """
+  This phase will parse the `input` field of the `Absinthe.Blueprint.t()` which at this point is either a `String.t()` or an `Absinthe.Language.Source.t()`.
+
+  If tokenizing and parsing the source is successful, the `input` field of the blueprint will be set to the parsed `Absinthe.Language.Document.t()`.
+
+  If tokenizing or parsing fails, the `input` field of the blueprint will be set to `nil` and the `validation_errors` field
+  of the execution  will be set to a list of `Absinthe.Phase.Error.t()` structs.
+
+  Among other possible errors, this phase will verify that the number of tokens in the source does not exceed the limit set by the `:token_limit` option.
+
+  If the `:jump_phases` option is set to `true`, parse errors will cause this phase to return a `{:jump, blueprint, abort_phase}` causing the pipeline to
+  skip execution until to the `abort_phase` phase.
+  In the default pipeline with the default options, the `abort_phase` is `Absinthe.Phase.Document.Result` and `jump_phases` is set to `true`.
+
+  """
 
   use Absinthe.Phase
 
   alias Absinthe.{Blueprint, Language, Phase}
 
-  # This is because Dialyzer is telling us tokenizing can never fail,
-  # but we know it's possible.
-  @dialyzer {:no_match, run: 2}
-  @spec run(Language.Source.t() | %Blueprint{}, Keyword.t()) :: Phase.result_t()
+  @spec run(Language.Source.t() | %Blueprint{}, Keyword.t()) ::
+          {:ok, Blueprint.t()} | {:jump, Blueprint.t(), Phase.t()} | {:error, Blueprint.t()}
   def run(input, options \\ [])
 
   def run(%Absinthe.Blueprint{} = blueprint, options) do
@@ -27,13 +39,13 @@ defmodule Absinthe.Phase.Parse do
     run(%Absinthe.Blueprint{input: input}, options)
   end
 
-  # This is because Dialyzer is telling us tokenizing can never fail,
-  # but we know it's possible.
-  @dialyzer {:no_unused, add_validation_error: 2}
+  @spec add_validation_error(Blueprint.t(), Phase.Error.t()) :: Blueprint.t()
   defp add_validation_error(bp, error) do
     put_in(bp.execution.validation_errors, [error])
   end
 
+  @spec handle_error(Blueprint.t(), map()) ::
+          {:jump, Blueprint.t(), Phase.t()} | {:error, Blueprint.t()}
   def handle_error(blueprint, %{jump_phases: true, result_phase: abort_phase}) do
     {:jump, blueprint, abort_phase}
   end
@@ -42,7 +54,7 @@ defmodule Absinthe.Phase.Parse do
     {:error, blueprint}
   end
 
-  @spec tokenize(binary, Keyword.t()) :: {:ok, [tuple]} | {:error, String.t()}
+  @spec tokenize(binary, Keyword.t()) :: {:ok, [tuple]} | {:error, Phase.Error.t()}
   def tokenize(input, options \\ []) do
     case Absinthe.Lexer.tokenize(input, options) do
       {:error, rest, loc} ->
@@ -56,11 +68,8 @@ defmodule Absinthe.Phase.Parse do
     end
   end
 
-  # This is because Dialyzer is telling us tokenizing can never fail,
-  # but we know it's possible.
-  @dialyzer {:no_match, parse: 2}
   @spec parse(binary | Language.Source.t(), Keyword.t()) ::
-          {:ok, Language.Document.t()} | {:error, tuple}
+          {:ok, Language.Document.t()} | {:error, Phase.Error.t()}
   defp parse(input, options) when is_binary(input) do
     parse(%Language.Source{body: input}, options)
   end
@@ -80,7 +89,7 @@ defmodule Absinthe.Phase.Parse do
               {:error, format_raw_parse_error(raw_error)}
           end
 
-        other ->
+        {:error, %Phase.Error{}} = other ->
           other
       end
     rescue
@@ -89,6 +98,7 @@ defmodule Absinthe.Phase.Parse do
     end
   end
 
+  # errors in the yecc parser
   @spec format_raw_parse_error({{integer, integer}, :absinthe_parser, [charlist]}) ::
           Phase.Error.t()
   defp format_raw_parse_error({{line, column}, :absinthe_parser, msgs}) do
@@ -103,6 +113,7 @@ defmodule Absinthe.Phase.Parse do
     %Phase.Error{message: message, locations: [%{line: line, column: 0}], phase: __MODULE__}
   end
 
+  # error in the tokenizer
   @spec format_raw_parse_error({:lexer, String.t(), {line :: pos_integer, column :: pos_integer}}) ::
           Phase.Error.t()
   defp format_raw_parse_error({:lexer, rest, {line, column}}) do
@@ -113,6 +124,7 @@ defmodule Absinthe.Phase.Parse do
     %Phase.Error{message: message, locations: [%{line: line, column: column}], phase: __MODULE__}
   end
 
+  # exception in the tokenizer
   @unknown_error_msg "An unknown error occurred during parsing"
   @spec format_raw_parse_error(map) :: Phase.Error.t()
   defp format_raw_parse_error(%{} = error) do

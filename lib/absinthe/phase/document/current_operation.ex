@@ -1,13 +1,13 @@
 defmodule Absinthe.Phase.Document.CurrentOperation do
-  @moduledoc false
+  @moduledoc """
+  Selects the current operation.
 
-  # Selects the current operation.
-  #
-  # - If an operation name is given, the matching operation is marked as current.
-  # - If no operation name is provided and the there is only one operation,
-  #   it is set as current.
-  #
-  # Note that no validation occurs in this phase.
+  - If an operation name is given, the matching operation is marked as current.
+  - If no operation name is provided and the there is only one operation,
+    it is set as current.
+
+  Note that no validation occurs in this phase.
+  """
 
   use Absinthe.Phase
   alias Absinthe.Blueprint
@@ -19,6 +19,7 @@ defmodule Absinthe.Phase.Document.CurrentOperation do
     {:ok, result}
   end
 
+  @spec process([Blueprint.Document.Operation.t()], map()) :: [Blueprint.Document.Operation.t()]
   defp process([op], %{operation_name: nil}) do
     [%{op | current: true}]
   end
